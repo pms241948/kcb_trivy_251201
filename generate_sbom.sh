@@ -55,16 +55,39 @@ scan_file() {
     # We mount the directory containing the file to /scan_target
     # and tell Trivy to scan /scan_target/filename
     
+    # Determine scan mode based on file type
+    if [[ "$FILE_NAME" == *.tar ]]; then
+        # Check if it looks like a Docker image (contains manifest.json at root)
+        # Using tar -tf to list files. 
+        # We redirect stderr to null to hide errors if not a valid tar.
+        if tar -tf "$FILE_PATH" 2>/dev/null | grep -q "^manifest.json$"; then
+             echo "  [!] Type: Docker Image Archive (manifest.json found)"
+             ARG_TYPE="image"
+             INPUT_ARG="--input /scan_target/$FILE_NAME"
+             TARGET_ARG=""
+        else
+             echo "  [!] Type: Regular Tar Archive (Treated as filesystem)"
+             ARG_TYPE="filesystem"
+             INPUT_ARG=""
+             TARGET_ARG="/scan_target/$FILE_NAME"
+        fi
+    else
+        echo "  [!] Type: File/Directory"
+        ARG_TYPE="filesystem"
+        INPUT_ARG=""
+        TARGET_ARG="/scan_target/$FILE_NAME"
+    fi
+
     docker run --rm \
       -v "$FILE_DIR":/scan_target:ro \
       -v "$TODAY_OUTPUT_DIR":/output \
       -v "$CACHE_DIR":/root/.cache/trivy \
-      aquasec/trivy:latest filesystem \
+      aquasec/trivy:latest $ARG_TYPE \
       --format cyclonedx \
       --offline-scan \
       --skip-db-update \
       --output "/output/$OUTPUT_FILENAME" \
-      "/scan_target/$FILE_NAME"
+      $INPUT_ARG $TARGET_ARG
 
     local EXIT_CODE=$?
     
