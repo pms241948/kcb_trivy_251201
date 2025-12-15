@@ -1,2 +1,4 @@
 trivy-cache/
 trivy_offline_assets/
+output/
+test_workspace/

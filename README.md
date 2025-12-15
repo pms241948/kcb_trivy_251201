@@ -1,45 +1,62 @@
-# [폐쇄망] 오프라인 SBOM 자산 관리 시스템
+# SBOM Generator with Trivy
 
-이 프로젝트는 인터넷 접근이 제한된 폐쇄망 환경에서 오픈소스 스캐닝 도구인 **Trivy**를 활용하여 소프트웨어 자산의 SBOM(Software Bill of Materials)을 생성하고 관리하기 위한 자동화 시스템입니다.
+이 프로젝트는 **Trivy**를 사용하여 파일, 폴더, 그리고 **Docker 이미지**에 대한 **SBOM (Software Bill of Materials)**을 자동으로 생성해주는 도구입니다.
 
-## 📁 프로젝트 구조
+특히 **폐쇄망(Offline) 환경**에서도 동작하도록 설계되었으며, CycloneDX 포맷의 JSON 파일을 날짜별로 정리하여 저장합니다.
+
+## ✨ 주요 기능
+
+1.  **다양한 대상 스캔 지원**:
+    *   **소스 코드 / 프로젝트 폴더**: Java, Python, Node.js, Go 등 모든 Trivy 지원 언어 자동 감지.
+    *   **Docker 이미지 파일 (`.tar`)**: `docker save`로 저장된 이미지 파일을 건네주면 자동으로 인식하여 이미지 스캔 모드로 동작.
+2.  **폐쇄망(Offline) 완벽 지원**:
+    *   인터넷이 없는 서버에서도 실행 가능하도록 DB 및 이미지 다운로드 스크립트 제공.
+    *   `--offline-scan` 옵션을 사용하여 외부 통신 차단.
+3.  **자동화된 결과 관리**:
+    *   `output/[YYYYMMDD]/` 폴더에 날짜별로 결과 자동 저장.
+
+## 🚀 사용 방법
+
+### 1. 사전 준비 (인터넷 가능한 PC에서)
+폐쇄망 서버로 가져갈 자산을 다운로드합니다.
+
+```bash
+# Docker 이미지와 취약점 DB를 다운로드 및 압축합니다.
+./prepare_offline.sh
+```
+생성된 `trivy_offline_assets` 폴더 안의 파일들과 `generate_sbom.sh`를 서버로 옮깁니다. 자세한 내용은 [OFFLINE_GUIDE.md](OFFLINE_GUIDE.md)를 참고하세요.
+
+### 2. SBOM 생성 실행 (서버에서)
+
+```bash
+# 실행 권한 부여
+chmod +x generate_sbom.sh
+
+# 1) 프로젝트 소스 코드 폴더 스캔
+./generate_sbom.sh /app/my-web-project
+
+# 2) 단일 파일(jar, war 등) 스캔
+./generate_sbom.sh /app/deploy/app.jar
+
+# 3) Docker 이미지 파일(.tar) 스캔
+./generate_sbom.sh /app/images/myapp-v1.tar
+```
+
+## 📂 프로젝트 구조
 
 ```text
 .
-├── generate_sbom.sh      # 메인 실행 스크립트 (SBOM 생성 자동화)
-├── output/               # 생성된 SBOM 결과물 저장소 (날짜별 자동 분류)
-└── trivy-cache/          # 오프라인 취약점 DB 캐시 저장소
+├── generate_sbom.sh      # [메인] SBOM 생성 스크립트
+├── prepare_offline.sh    # [준비] 오프라인용 자산 다운로드 스크립트
+├── OFFLINE_GUIDE.md      # [문서] 오프라인 환경 가이드 (상세 절차)
+├── test_sbom_generation.sh # [테스트] 기능 검증용 테스트 스크립트
+└── README.md             # 프로젝트설명
 ```
 
-## 🚀 주요 기능
+## 🛠 지원 포맷 예시
 
-1.  **오프라인 스캔**: 인터넷 연결 없이 로컬 Docker 이미지와 캐시된 DB를 사용하여 스캔을 수행합니다.
-2.  **유연한 대상 지정**:
-    - **단일 파일**: 특정 파일 하나만 지정하여 스캔 가능.
-    - **폴더 일괄 처리**: 폴더 지정 시 내부의 모든 파일을 자동으로 찾아 각각 SBOM 생성.
-3.  **체계적인 관리**: 결과물을 `YYYYMMDD` 날짜별 폴더에 저장하고, 파일명에 날짜와 원본 파일명을 포함하여 이력을 관리합니다.
+본 도구는 Trivy가 지원하는 대부분의 포맷을 처리할 수 있습니다.
 
-## 🛠️ 설치 및 사용 방법
-
-상세한 설치 및 사용 방법은 [사용자 가이드 (walkthrough.md)](file:///C:/Users/pms24/.gemini/antigravity/brain/5b032176-56fd-4889-87d8-d1ec678b8b94/walkthrough.md)를 참고하세요.
-
-### 간편 시작
-
-1.  **Docker 이미지 로드** (최초 1회):
-    ```bash
-    docker load -i trivy_latest.tar
-    ```
-
-2.  **스크립트 실행**:
-    ```bash
-    # 단일 파일 스캔
-    ./generate_sbom.sh ./target/app.jar
-
-    # 폴더 전체 스캔
-    ./generate_sbom.sh ./target/project-folder
-    ```
-
-## 📋 요구 사항
-
-- **OS**: Windows (Git Bash 권장) 또는 Linux
-- **Docker**: 설치 및 실행 중이어야 함
+*   **Application Dependencies**: `pom.xml`, `package-lock.json`, `requirements.txt`, `Gemfile.lock`, `go.sum` 등
+*   **OS Packages**: Alpine, RedHat, Debian 계열 (Docker 이미지 스캔 시)
+*   **Archives**: `.tar` (Docker Image), `.jar`, `.war`
